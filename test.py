@@ -4,16 +4,21 @@ import torch
 import torch.backends.cudnn as cudnn
 import numpy as np
 import PIL.Image as pil_image
-
+from skimage import io, transform
+from skimage import img_as_float
+import cv2
 from models import SRCNN
 from utils import convert_rgb_to_ycbcr, convert_ycbcr_to_rgb, calc_psnr
+from skimage.metrics import structural_similarity as ssim
 
+
+pname ='woman'
 
 if __name__ == '__main__':
     # 设置权重参数目录，处理图像目录，放大倍数
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights-file', default='outputs/x3/best.pth', type=str)
-    parser.add_argument('--image-file', default='img/img_kenan.jpeg', type=str)
+    parser.add_argument('--image-file', default=f'img/{pname}.png', type=str)
     parser.add_argument('--scale', type=int, default=3)
     args = parser.parse_args()
     #  Benchmark模式会提升计算速度
@@ -58,7 +63,12 @@ if __name__ == '__main__':
     psnr = calc_psnr(y, preds)   # 计算y通道的psnr值
     print('PSNR: {:.2f}'.format(psnr))  # 格式化输出PSNR值
 
-    # 1.mul函数类似矩阵.*，即每个元素×255
+    # img1 = np.array(pil_image.open('img/baby.png'))
+    # img2 = np.array(pil_image.open('img/baby_srcnn_x3.png'))
+
+    # print(img1.shape)
+    # print(img2.shape)
+     # 1.mul函数类似矩阵.*，即每个元素×255
     # 2. *.cpu（）.numpy（） 将数据的处理设备从其他设备（如gpu拿到cpu上），不会改变变量类型，转换后仍然是Tensor变量，同时将Tensor转化为ndarray
     # 3. *.squeeze(0).squeeze(0)数据的维度进行压缩
     preds = preds.mul(255.0).cpu().numpy().squeeze(0).squeeze(0)  #得到的是经过模型处理，取值在[0,255]的y通道图像
@@ -69,3 +79,19 @@ if __name__ == '__main__':
     output = np.clip(convert_ycbcr_to_rgb(output), 0.0, 255.0).astype(np.uint8)  # 将图像格式从ycbcr转为rgb，限制取值范围[0,255]，同时矩阵元素类型为uint8类型
     output = pil_image.fromarray(output)   # array转换成image，即将矩阵转为图像
     output.save(args.image_file.replace('.', '_srcnn_x{}.'.format(args.scale)))  # 对图像进行保存
+
+
+    img1 = img_as_float(io.imread(f'img/{pname}.png'))
+    img2 = img_as_float(io.imread(f'img/{pname}_srcnn_x3.png'))
+    # 显示图像
+    # cv2.imshow('Image Window', img)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    if img1.shape != img2.shape:
+        img2 = transform.resize(img2, img1.shape, mode='reflect', anti_aliasing=True)
+
+    ssim = ssim(img1, img2, data_range=img1.max() - img1.min(),channel_axis=-1)
+    print('SSIM: {:.2f}'.format(ssim))
+
+   
